@@ -1,0 +1,66 @@
+@import "tailwindcss";
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@200..800&display=swap');
+
+@theme {
+  --font-manrope: "Manrope", sans-serif;
+
+  /* Precision Palette based on Goodbe Attachment */
+  --color-primary: #0F3C23;
+  /* Dark Forest Green */
+  --color-accent: #B1D135;
+  /* Vibrant Lime Green */
+  --color-background: #FFFFFF;
+  --color-surface: #F9FBF9;
+
+  --color-primary-foreground: #FFFFFF;
+  --color-foreground: #0F172A;
+  --color-border: #E2E8F0;
+  --color-muted: #64748B;
+
+  --radius-xl: 1rem;
+  --radius-2xl: 1.5rem;
+  --radius-3xl: 2rem;
+}
+
+@layer base {
+  body {
+    font-family: var(--font-manrope);
+    background-color: var(--color-background);
+    color: var(--color-foreground);
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.01em;
+  }
+}
+
+@layer components {
+  .premium-card {
+    @apply bg-white border border-slate-100 rounded-2xl shadow-sm transition-all duration-300;
+  }
+
+  .premium-card:hover {
+    @apply -translate-y-1 shadow-md border-accent/30;
+  }
+
+  /* Custom Goodbe Gradients */
+  .bg-primary-gradient {
+    background: linear-gradient(135deg, #0F3C23 0%, #1A5D36 100%);
+  }
+
+  .nav-active {
+    @apply text-slate-900 relative;
+  }
+
+  .nav-active::after {
+    content: '';
+    @apply absolute bottom-[-22px] left-0 w-full h-[3px] bg-accent rounded-t-full;
+  }
+
+  .map-circle {
+    @apply absolute border border-primary/5 rounded-full pointer-events-none;
+  }
+
+  .mask-fade-bottom {
+    mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+    -webkit-mask-image: linear-gradient(to bottom, black 40%, transparent 100%);
+  }
+}
