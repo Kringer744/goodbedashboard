@@ -1,12 +1,15 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { 
-  TrendingUp, MousePointer2, Eye, 
-  DollarSign, RefreshCw, AlertCircle, BarChart3
+import {
+  TrendingUp, MousePointer2, Eye,
+  DollarSign, RefreshCw, AlertCircle, BarChart3, Calendar
 } from 'lucide-react';
 import { fetchAdAccounts, fetchCampaigns, type AdAccount, type MetaCampaign } from '../services/metaApi';
 
 type Platform = 'meta' | 'google';
+
+function todayStr() { return new Date().toISOString().split('T')[0]; }
+function monthAgoStr() { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0]; }
 
 export function CampanhasScreen() {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
@@ -15,6 +18,8 @@ export function CampanhasScreen() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [activePlatform, setActivePlatform] = useState<Platform>('meta');
+  const [dateFrom, setDateFrom] = useState('');
+  const [dateTo, setDateTo] = useState('');
 
   useEffect(() => {
     if (activePlatform === 'meta') {
@@ -30,7 +35,7 @@ export function CampanhasScreen() {
       setAdAccounts(accounts);
       if (accounts.length > 0) {
         setSelectedAccount(accounts[0].id);
-        loadCampaigns(accounts[0].id);
+        loadCampaigns(accounts[0].id, dateFrom, dateTo);
       }
     } catch (err: any) {
       setError(err.message || 'Erro ao carregar contas de anúncios');
@@ -39,11 +44,11 @@ export function CampanhasScreen() {
     }
   }
 
-  async function loadCampaigns(accountId: string) {
+  async function loadCampaigns(accountId: string, from?: string, to?: string) {
     setIsLoading(true);
     setError(null);
     try {
-      const data = await fetchCampaigns(accountId);
+      const data = await fetchCampaigns(accountId, from ?? dateFrom, to ?? dateTo);
       setCampaigns(data);
       
       // Calculate total spend and save to localStorage for KPIs screen
@@ -63,10 +68,11 @@ export function CampanhasScreen() {
       acc.spend += Number(i.spend) || 0;
       acc.impressions += Number(i.impressions) || 0;
       acc.clicks += Number(i.clicks) || 0;
+      acc.leads += Number(i.leads) || 0;
       acc.reach += Number(i.reach) || 0;
     }
     return acc;
-  }, { spend: 0, impressions: 0, clicks: 0, reach: 0 });
+  }, { spend: 0, impressions: 0, clicks: 0, leads: 0, reach: 0 });
 
   const avgCtr = totals.impressions > 0 ? (totals.clicks / totals.impressions) * 100 : 0;
   const avgCpc = totals.clicks > 0 ? totals.spend / totals.clicks : 0;
@@ -92,6 +98,30 @@ export function CampanhasScreen() {
         </div>
 
         <div className="flex flex-col gap-4">
+          {/* Filtro de data */}
+          <div className="flex items-center gap-2 px-5 py-3 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black text-slate-500 w-fit">
+            <Calendar size={14} className="text-primary shrink-0" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => {
+                setDateFrom(e.target.value);
+                if (selectedAccount && e.target.value && dateTo) loadCampaigns(selectedAccount, e.target.value, dateTo);
+              }}
+              className="bg-transparent text-[11px] font-black text-primary focus:outline-none w-[110px] cursor-pointer"
+            />
+            <span className="text-slate-300">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => {
+                setDateTo(e.target.value);
+                if (selectedAccount && dateFrom && e.target.value) loadCampaigns(selectedAccount, dateFrom, e.target.value);
+              }}
+              className="bg-transparent text-[11px] font-black text-primary focus:outline-none w-[110px] cursor-pointer"
+            />
+          </div>
+
           {/* Platform Tabs */}
           <div className="flex bg-slate-100 p-1 rounded-2xl w-fit">
             <button
@@ -137,7 +167,7 @@ export function CampanhasScreen() {
                 )}
                 
                 <button
-                  onClick={() => loadCampaigns(selectedAccount)}
+                  onClick={() => loadCampaigns(selectedAccount, dateFrom, dateTo)}
                   disabled={isLoading}
                   className="w-10 h-10 flex items-center justify-center rounded-xl bg-white border border-slate-100 text-slate-400 hover:text-primary transition-all"
                 >
@@ -191,12 +221,12 @@ export function CampanhasScreen() {
               color="blue"
               sub="Total de visualizações"
             />
-            <SummaryCard 
-              label="Cliques" 
-              value={totals.clicks.toLocaleString('pt-BR')}
+            <SummaryCard
+              label="Leads"
+              value={totals.leads.toLocaleString('pt-BR')}
               icon={MousePointer2}
               color="purple"
-              sub={`${avgCtr.toFixed(2)}% CTR Médio`}
+              sub={`${totals.clicks.toLocaleString('pt-BR')} cliques · ${avgCtr.toFixed(2)}% CTR`}
             />
             <SummaryCard 
               label="CPC Médio" 
@@ -228,7 +258,7 @@ export function CampanhasScreen() {
                     <th className="px-8 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest">Campanha</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-center">Status</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Investido</th>
-                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Cliques</th>
+                    <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">Leads</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">CTR</th>
                     <th className="px-6 py-4 text-[10px] font-black text-slate-400 uppercase tracking-widest text-right">CPC</th>
                   </tr>
@@ -267,7 +297,7 @@ export function CampanhasScreen() {
                         R$ {Number(campaign.insights?.spend || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}
                       </td>
                       <td className="px-6 py-5 text-right font-bold text-slate-600 text-[13px]">
-                        {Number(campaign.insights?.clicks || 0).toLocaleString('pt-BR')}
+                        {Number(campaign.insights?.leads || 0).toLocaleString('pt-BR')}
                       </td>
                       <td className="px-6 py-5 text-right font-bold text-slate-400 text-[13px]">
                         {Number(campaign.insights?.ctr || 0).toFixed(2)}%

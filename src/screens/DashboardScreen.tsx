@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import gbElement from '../assets/gb_element-2.png';
 import {
@@ -8,14 +8,15 @@ import {
   ArrowRight,
   Map as MapIcon,
   Download,
-  Filter
+  Filter,
+  Calendar,
 } from 'lucide-react';
 import { type DashboardData, type Page } from '../App';
 import { StatsCard } from '../components/StatsCard';
 import { Megaphone } from 'lucide-react';
 import { UnitCard } from '../components/UnitCard';
 import { UnitDetailsModal } from '../components/UnitDetailsModal';
-import { formatNumber, getCachedAvgTicket, type BranchStats, UNITS } from '../services/evoApi';
+import { formatNumber, getCachedAvgTicket, type BranchStats, UNITS, fetchEntriesAllBranchesForDate } from '../services/evoApi';
 import { generateReport } from '../services/pdfReport';
 
 interface Props {
@@ -25,10 +26,28 @@ interface Props {
   onNavigateToMembers?: (branchId: number) => void;
 }
 
+function todayStr() {
+  return new Date().toISOString().split('T')[0];
+}
+function monthAgoStr() {
+  const d = new Date();
+  d.setMonth(d.getMonth() - 1);
+  return d.toISOString().split('T')[0];
+}
+
 export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembers }: Props) {
   const [selectedUnit, setSelectedUnit] = useState<BranchStats | null>(null);
   const [generatingPdf, setGeneratingPdf] = useState(false);
+  const [dateFrom, setDateFrom] = useState(monthAgoStr());
+  const [dateTo, setDateTo] = useState(todayStr());
+  const [lastMonthEntries, setLastMonthEntries] = useState<number | null>(null);
   const bars = data?.barData ?? FALLBACK_BARS;
+
+  useEffect(() => {
+    const lastMonth = new Date();
+    lastMonth.setMonth(lastMonth.getMonth() - 1);
+    fetchEntriesAllBranchesForDate(lastMonth).then(setLastMonthEntries).catch(() => {});
+  }, []);
 
   const avgTicket = getCachedAvgTicket();
   const receita = data ? data.totalActiveMembers * avgTicket : 0;
@@ -78,7 +97,24 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
         </div>
 
         {/* Botão Relatório Completo — alinhado à direita sob o logo */}
-        <div className="hidden md:flex mt-4 w-full max-w-[860px] justify-end gap-3 items-center">
+        <div className="hidden md:flex mt-4 w-full max-w-[860px] justify-end gap-3 items-center flex-wrap">
+          {/* Filtro de data */}
+          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black text-slate-500">
+            <Calendar size={13} className="text-primary shrink-0" />
+            <input
+              type="date"
+              value={dateFrom}
+              onChange={e => setDateFrom(e.target.value)}
+              className="bg-transparent text-[11px] font-black text-primary focus:outline-none w-[110px] cursor-pointer"
+            />
+            <span className="text-slate-300">→</span>
+            <input
+              type="date"
+              value={dateTo}
+              onChange={e => setDateTo(e.target.value)}
+              className="bg-transparent text-[11px] font-black text-primary focus:outline-none w-[110px] cursor-pointer"
+            />
+          </div>
           <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
             <Filter size={12} /> Filtro: <span className="text-primary">Geral</span>
           </div>
@@ -131,13 +167,14 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
           title="Entradas Hoje"
           value={data ? formatNumber(data.todayEntries) : '—'}
           trend="Check-ins registrados hoje"
+          comparison={lastMonthEntries === null ? 'Mês passado neste dia: carregando…' : `Mês passado neste dia: ${lastMonthEntries.toLocaleString('pt-BR')} entradas`}
           icon={Activity}
           color="accent"
           isLoading={isLoading}
         />
         <StatsCard
           title="MRR Estimado"
-          value={data ? `R$ ${(receita / 1000).toFixed(0)}k` : '—'}
+          value={data ? `R$ ${receita.toLocaleString('pt-BR')}` : '—'}
           trend={`Ticket médio R$ ${avgTicket}`}
           icon={TrendingUp}
           color="primary"

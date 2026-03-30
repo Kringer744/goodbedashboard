@@ -5,20 +5,22 @@ interface CardProps {
   title: string;
   value: string;
   trend?: string;
+  comparison?: string;
   icon: React.ElementType;
   color?: 'primary' | 'accent' | 'rose' | 'secondary' | 'amber';
   isLoading?: boolean;
   secondaryIcon?: React.ReactNode;
 }
 
-export const StatsCard = ({ 
-  title, 
-  value, 
-  trend, 
-  icon: Icon, 
-  color = 'primary', 
+export const StatsCard = ({
+  title,
+  value,
+  trend,
+  comparison,
+  icon: Icon,
+  color = 'primary',
   isLoading,
-  secondaryIcon 
+  secondaryIcon
 }: CardProps) => {
   const colorMap = {
     primary:   'bg-primary/10 text-primary',
@@ -62,8 +64,10 @@ export const StatsCard = ({
             <span className={trend.includes('+') ? 'text-accent' : trend.includes('-') ? 'text-rose-500' : 'text-slate-400'}>
               {trend}
             </span>
-            <span>neste período</span>
           </p>
+        )}
+        {comparison && (
+          <p className="text-[11px] mt-1 font-bold text-slate-300">{comparison}</p>
         )}
       </div>
     </motion.div>

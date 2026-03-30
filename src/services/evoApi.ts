@@ -445,6 +445,26 @@ export async function fetchTodayEntriesAllBranches(): Promise<EntryRecord[]> {
   return all;
 }
 
+export async function fetchEntriesAllBranchesForDate(date: Date): Promise<number> {
+  const yyyy = date.getFullYear();
+  const mm   = String(date.getMonth() + 1).padStart(2, '0');
+  const dd   = String(date.getDate()).padStart(2, '0');
+  const startDate = `${yyyy}-${mm}-${dd}T00:00:00`;
+  const endDate   = `${yyyy}-${mm}-${dd}T23:59:59`;
+
+  let total = 0;
+  for (const [, unit] of Object.entries(UNITS)) {
+    try {
+      const data = await evoGet(
+        `/api/v1/entries?take=1000&registerDateStart=${startDate}&registerDateEnd=${endDate}`,
+        unit.token
+      );
+      total += (extractArray(data) as EntryRecord[]).length;
+    } catch { /* non-fatal */ }
+  }
+  return total;
+}
+
 // ─── Cached Ticket Helper ─────────────────────────────────────────────────────
 
 /** Returns the EVO avg ticket from localStorage cache, or 180 if not yet loaded. */
@@ -462,7 +482,6 @@ export function getCachedAvgTicket(): number {
 // ─── Formatting ───────────────────────────────────────────────────────────────
 
 export function formatNumber(n: number): string {
-  if (n >= 1000) return `${(n / 1000).toFixed(1)}k`;
   return n.toLocaleString('pt-BR');
 }
 

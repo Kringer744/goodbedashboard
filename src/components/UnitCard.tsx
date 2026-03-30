@@ -54,7 +54,7 @@ export const UnitCard = ({ unit, onDetailsClick }: UnitCardProps) => {
                     <div>
                         <p className="text-[9px] uppercase font-black text-slate-400 tracking-[0.2em] mb-2">Inativos</p>
                         <p className={`text-[2.2rem] font-black tracking-tighter leading-none ${inactivePct > 30 ? 'text-rose-500' : 'text-amber-500'}`}>
-                            {unit.hasError ? '—' : `${inactivePct}%`}
+                            {unit.hasError ? '—' : unit.inactiveMembers.toLocaleString('pt-BR')}
                         </p>
                     </div>
                 </div>

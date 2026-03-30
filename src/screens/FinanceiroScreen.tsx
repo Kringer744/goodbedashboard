@@ -132,7 +132,7 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-16">
         <StatsCard
           title="MRR Projetado"
-          value={isLoading ? '—' : `R$ ${(projectedMRR / 1000).toFixed(1)}k`}
+          value={isLoading ? '—' : `R$ ${projectedMRR.toLocaleString('pt-BR')}`}
           trend={`${formatNumber(activeMembers)} membros ativos`}
           icon={TrendingUp}
           color="accent"
@@ -140,7 +140,7 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
         />
         <StatsCard
           title="Receita em Risco"
-          value={isLoading ? '—' : `R$ ${(riskRevenue / 1000).toFixed(1)}k`}
+          value={isLoading ? '—' : `R$ ${riskRevenue.toLocaleString('pt-BR')}`}
           trend={`${formatNumber(inactiveMembers)} inativos`}
           icon={Zap}
           color="amber"
@@ -148,7 +148,7 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
         />
         <StatsCard
           title="ARR Projetado"
-          value={isLoading ? '—' : `R$ ${((projectedMRR * 12) / 1000).toFixed(0)}k`}
+          value={isLoading ? '—' : `R$ ${(projectedMRR * 12).toLocaleString('pt-BR')}`}
           trend="Receita anual estimada"
           icon={TrendingDown}
           color="primary"
@@ -349,7 +349,7 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
                             </span>
                           </div>
                           <span className="font-black text-primary text-[15px]">
-                            R$ {mrr >= 1000 ? `${(mrr / 1000).toFixed(1)}k` : mrr.toLocaleString('pt-BR')}
+                            R$ {mrr.toLocaleString('pt-BR')}
                           </span>
                         </div>
                         <div className="h-3.5 bg-slate-100 rounded-full overflow-hidden shadow-inner">
@@ -373,13 +373,13 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">MRR Total</p>
                   <p className="text-[2.2rem] font-black text-primary tracking-tighter leading-none">
-                    R$ {(projectedMRR / 1000).toFixed(1)}k
+                    R$ {projectedMRR.toLocaleString('pt-BR')}
                   </p>
                 </div>
                 <div>
                   <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-2">ARR Projetado</p>
                   <p className="text-[2.2rem] font-black text-accent tracking-tighter leading-none">
-                    R$ {((projectedMRR * 12) / 1000).toFixed(0)}k
+                    R$ {(projectedMRR * 12).toLocaleString('pt-BR')}
                   </p>
                 </div>
               </div>

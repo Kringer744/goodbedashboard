@@ -25,6 +25,7 @@ export interface CampaignInsights {
   impressions: number;
   reach: number;
   clicks: number;
+  leads: number;
   cpc: number;
   ctr: number;
   cpp: number;
@@ -55,29 +56,33 @@ export async function fetchAdAccounts(): Promise<AdAccount[]> {
 /**
  * Fetch campaigns for a specific ad account
  */
-export async function fetchCampaigns(adAccountId: string): Promise<MetaCampaign[]> {
+export async function fetchCampaigns(adAccountId: string, dateFrom?: string, dateTo?: string): Promise<MetaCampaign[]> {
   try {
-    // We fetch campaigns with some basic fields and their recent insights
     const fields = 'name,status,objective';
     const response = await fetch(`${META_BASE_URL}/${adAccountId}/campaigns?fields=${fields}&access_token=${META_ACCESS_TOKEN}`);
-    
+
     if (!response.ok) {
       const error = await response.json();
       throw new Error(error.error?.message || `Meta API Error: ${response.status}`);
     }
-    
+
     const data = await response.json();
     const campaigns: MetaCampaign[] = data.data || [];
-    
-    // Fetch insights for each campaign (using a batch or separate calls, for simplicity we do it per campaign or for the whole account)
-    // Actually, it's better to fetch account-level insights partitioned by campaign
-    const insights = await fetchCampaignsInsights(adAccountId);
-    
-    // Map insights to campaigns
-    return campaigns.map(campaign => ({
-      ...campaign,
-      insights: insights.find(i => i.campaign_id === campaign.id)
-    }));
+
+    const insights = await fetchCampaignsInsights(adAccountId, dateFrom, dateTo);
+
+    return campaigns.map(campaign => {
+      const raw = insights.find(i => i.campaign_id === campaign.id);
+      if (!raw) return campaign;
+      const leadActions = (raw.actions || []).filter(
+        (a: any) =>
+          a.action_type === 'onsite_conversion.messaging_conversation_started_7d' ||
+          a.action_type === 'onsite_conversion.messaging_conversation_started_30d' ||
+          a.action_type === 'messaging_conversation_started'
+      );
+      const leads = leadActions.reduce((sum: number, a: any) => sum + Number(a.value || 0), 0);
+      return { ...campaign, insights: { ...raw, leads } };
+    });
   } catch (error) {
     console.error('Error fetching campaigns:', error);
     throw error;
@@ -87,10 +92,13 @@ export async function fetchCampaigns(adAccountId: string): Promise<MetaCampaign[
 /**
  * Fetch insights for all campaigns in an ad account for the last 30 days
  */
-async function fetchCampaignsInsights(adAccountId: string): Promise<any[]> {
+async function fetchCampaignsInsights(adAccountId: string, dateFrom?: string, dateTo?: string): Promise<any[]> {
   const fields = 'campaign_id,campaign_name,spend,impressions,reach,clicks,cpc,ctr,actions';
+  const dateParam = dateFrom && dateTo
+    ? `&time_range=${encodeURIComponent(JSON.stringify({ since: dateFrom, until: dateTo }))}`
+    : '&date_preset=last_30d';
   const response = await fetch(
-    `${META_BASE_URL}/${adAccountId}/insights?level=campaign&fields=${fields}&date_preset=last_30d&access_token=${META_ACCESS_TOKEN}`
+    `${META_BASE_URL}/${adAccountId}/insights?level=campaign&fields=${fields}${dateParam}&access_token=${META_ACCESS_TOKEN}`
   );
   
   if (!response.ok) {
