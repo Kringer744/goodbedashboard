@@ -8,9 +8,6 @@ import { fetchAdAccounts, fetchCampaigns, type AdAccount, type MetaCampaign } fr
 
 type Platform = 'meta' | 'google';
 
-function todayStr() { return new Date().toISOString().split('T')[0]; }
-function monthAgoStr() { const d = new Date(); d.setMonth(d.getMonth() - 1); return d.toISOString().split('T')[0]; }
-
 export function CampanhasScreen() {
   const [adAccounts, setAdAccounts] = useState<AdAccount[]>([]);
   const [selectedAccount, setSelectedAccount] = useState<string>('');
