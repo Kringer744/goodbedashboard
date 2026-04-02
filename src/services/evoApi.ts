@@ -696,7 +696,7 @@ export interface ReceivablesData {
   totalAmount: number;
 }
 
-const RECEIVABLES_CACHE_KEY = 'gb_receivables_data';
+const RECEIVABLES_CACHE_KEY = 'gb_receivables_data_v2';
 const RECEIVABLES_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<ReceivablesData> {
@@ -754,11 +754,23 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
     return newRow;
   });
 
-  console.log(`[Receivables] Parsed ${data.length} rows. Sample keys:`, data[0] ? Object.keys(data[0]) : []);
+  const sampleKeys = data[0] ? Object.keys(data[0]) : [];
+  console.log(`[Receivables] Parsed ${data.length} rows. Keys:`, sampleKeys);
+  if (data[0]) console.log('[Receivables] Sample row:', data[0]);
 
-  // Calculate totals — try common column names
-  const amountKey  = findKey(data[0], ['Valor', 'valor', 'Value', 'value', 'Total', 'total', 'ValorLiquido', 'Valor Líquido']);
-  const statusKey  = findKey(data[0], ['Status', 'status', 'Situação', 'situacao', 'Situacao']);
+  // Find amount column — try known names, fallback to first numeric column
+  const amountKey = findKey(data[0], [
+    'Valor', 'valor', 'Valor Lançamento', 'ValorLancamento',
+    'Valor Líquido', 'ValorLiquido', 'Value', 'value',
+    'Total', 'total', 'Receita', 'receita',
+  ]) ?? sampleKeys.find(k => typeof data[0]?.[k] === 'number') ?? '';
+
+  const statusKey = findKey(data[0], [
+    'Status', 'status', 'Situação', 'Situacao', 'situacao',
+    'StatusPagamento', 'Status Pagamento',
+  ]);
+
+  console.log(`[Receivables] Using amountKey="${amountKey}" statusKey="${statusKey}"`);
 
   let totalAmount   = 0;
   let totalReceived = 0;
@@ -766,18 +778,31 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
   let totalOverdue  = 0;
 
   for (const row of data) {
-    const amount = typeof row[amountKey] === 'number' ? row[amountKey] : parseFloat(String(row[amountKey] ?? '0').replace(',', '.')) || 0;
+    // Sum all numeric values in row if no amountKey found
+    let amount = 0;
+    if (amountKey && row[amountKey] !== undefined) {
+      amount = typeof row[amountKey] === 'number'
+        ? row[amountKey]
+        : parseFloat(String(row[amountKey]).replace(/\./g, '').replace(',', '.')) || 0;
+    } else {
+      // fallback: sum all positive numeric values in the row
+      for (const k of Object.keys(row)) {
+        if (typeof row[k] === 'number' && row[k] > 0) amount += row[k];
+      }
+    }
     totalAmount += amount;
 
     const status = String(row[statusKey] ?? '').toLowerCase();
-    if (status.includes('pago') || status.includes('receb') || status.includes('liquidado') || status.includes('paid')) {
+    if (status.includes('pago') || status.includes('receb') || status.includes('liquidado') || status.includes('paid') || status.includes('quitado')) {
       totalReceived += amount;
-    } else if (status.includes('atraso') || status.includes('vencido') || status.includes('overdue')) {
+    } else if (status.includes('atraso') || status.includes('vencido') || status.includes('overdue') || status.includes('inadim')) {
       totalOverdue += amount;
     } else {
       totalPending += amount;
     }
   }
+
+  console.log(`[Receivables] Totals — amount: ${totalAmount}, received: ${totalReceived}, pending: ${totalPending}, overdue: ${totalOverdue}`);
 
   const result: ReceivablesData = {
     data,
