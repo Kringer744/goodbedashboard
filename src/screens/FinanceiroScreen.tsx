@@ -12,7 +12,7 @@ import {
 } from '../services/evoApi';
 import type { DashboardData } from '../App';
 import { StatsCard } from '../components/StatsCard';
-import { AlertCircle, DollarSign } from 'lucide-react';
+import { DollarSign } from 'lucide-react';
 
 interface Props {
   data: DashboardData | null;
@@ -148,7 +148,7 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
       </motion.div>
 
       {/* ── KPIs ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-5 mb-16">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5 gap-5 mb-16">
         <StatsCard
           title="MRR Projetado"
           value={isLoading ? '—' : `R$ ${projectedMRR.toLocaleString('pt-BR')}`}
@@ -180,6 +180,14 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
           icon={Users}
           color="primary"
           isLoading={isLoading}
+        />
+        <StatsCard
+          title="Recebimento Mês"
+          value={receivablesLoading ? '—' : receivables ? `R$ ${receivables.totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
+          trend={receivablesLoading ? 'Carregando…' : receivables ? `${receivables.total} lançamentos` : receivablesError ? 'Erro ao carregar' : '—'}
+          icon={DollarSign}
+          color="accent"
+          isLoading={receivablesLoading}
         />
       </div>
 
@@ -409,126 +417,6 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
           </div>
         </motion.div>
       )}
-
-      {/* ── Recebimento em Tempo Real ── */}
-      <motion.div
-         initial={{ y: 24, opacity: 0 }}
-         whileInView={{ y: 0, opacity: 1 }}
-         viewport={{ once: true }}
-         transition={{ duration: 0.5 }}
-         className="mb-16"
-      >
-         <div className="flex items-center justify-between mb-10 border-l-[6px] border-l-emerald-500 pl-5">
-            <div>
-               <h2 className="text-[1.8rem] font-black text-[#1E293B] tracking-tight">Recebimento em Tempo Real</h2>
-               <p className="text-[13px] text-slate-400 font-semibold mt-1">
-                  {receivablesLoading
-                    ? 'Carregando recebíveis da EVO…'
-                    : receivables
-                      ? `${receivables.total} lançamentos · ${receivables.period}`
-                      : 'Dados não disponíveis'
-                  }
-               </p>
-            </div>
-            <button
-              onClick={loadReceivables}
-              disabled={receivablesLoading}
-              className="flex items-center gap-2 px-5 py-2.5 bg-white border border-slate-100 rounded-2xl text-[11px] font-black text-slate-500 uppercase tracking-widest hover:bg-primary hover:text-white transition-all disabled:opacity-40 shadow-sm"
-            >
-              <RefreshCw size={13} className={receivablesLoading ? 'animate-spin' : ''} />
-              {receivablesLoading ? 'Carregando…' : 'Atualizar'}
-            </button>
-         </div>
-
-         {receivablesLoading && (
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-             {[1, 2, 3].map(i => (
-               <div key={i} className="h-48 rounded-[2.5rem] bg-slate-100 animate-pulse" />
-             ))}
-           </div>
-         )}
-
-         {receivablesError && !receivablesLoading && (
-           <div className="py-16 text-center bg-white rounded-[2.5rem] border border-red-100">
-             <AlertCircle size={36} className="mx-auto text-red-300 mb-4" />
-             <p className="text-red-400 font-bold">Erro ao carregar recebíveis</p>
-             <p className="text-slate-400 text-[13px] mt-2">{receivablesError}</p>
-           </div>
-         )}
-
-         {!receivablesLoading && receivables && (
-           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* Main card — Total recebido */}
-              <div className="lg:col-span-2 bg-gradient-to-br from-[#0F3C23] to-[#1a5c38] rounded-[2.5rem] p-10 relative overflow-hidden shadow-2xl">
-                 <div className="absolute top-0 right-0 w-64 h-64 bg-accent/10 rounded-full blur-3xl -mr-20 -mt-20" />
-                 <div className="relative z-10">
-                    <div className="flex items-center gap-3 mb-6">
-                       <DollarSign size={20} className="text-accent" />
-                       <span className="text-[12px] font-black tracking-widest uppercase text-white/50">Caixa do Mês</span>
-                    </div>
-                    <h3 className="text-white text-[2rem] font-black leading-tight mb-2">
-                       Recebíveis — Visão Consolidada
-                    </h3>
-                    <p className="text-white/50 text-[14px] leading-relaxed max-w-lg mb-8">
-                       Dados reais extraídos de <code className="bg-white/10 px-1 font-mono text-[11px] rounded">/api/v1/receivables/summary-excel</code> · {receivables.total} lançamentos no período.
-                    </p>
-
-                    <div className="grid grid-cols-2 gap-4">
-                       <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem]">
-                          <p className="text-[10px] uppercase font-black tracking-[0.2em] text-white/40 mb-2">Total Recebido</p>
-                          <p className="text-[2rem] font-black text-accent tracking-tighter leading-none mb-1">
-                             R$ {receivables.totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </p>
-                          <p className="text-[12px] font-semibold text-white/60 mt-2">
-                            {receivables.totalAmount > 0
-                              ? `${Math.round((receivables.totalReceived / receivables.totalAmount) * 100)}% do total`
-                              : '—'}
-                          </p>
-                       </div>
-                       <div className="bg-white/5 border border-white/10 p-6 rounded-[2rem]">
-                          <p className="text-[10px] uppercase font-black tracking-[0.2em] text-white/40 mb-2">Total Geral</p>
-                          <p className="text-[2rem] font-black text-white tracking-tighter leading-none mb-1">
-                             R$ {receivables.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                          </p>
-                          <p className="text-[12px] font-semibold text-white/60 mt-2">{receivables.total} lançamentos</p>
-                       </div>
-                    </div>
-                 </div>
-              </div>
-
-              {/* Side cards — Pendente + Inadimplente */}
-              <div className="flex flex-col gap-6">
-                 <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] flex-1">
-                    <div className="w-12 h-12 bg-amber-50 rounded-[1.2rem] flex items-center justify-center mb-4">
-                       <Zap size={22} className="text-amber-500" />
-                    </div>
-                    <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400 mb-2">Pendente</p>
-                    <p className="text-[1.8rem] font-black text-amber-500 tracking-tighter leading-none mb-1">
-                       R$ {receivables.totalPending.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </p>
-                    <p className="text-[12px] font-semibold text-slate-400 mt-2">
-                      A receber / em aberto
-                    </p>
-                 </div>
-
-                 <div className="bg-white rounded-[2.5rem] p-8 border border-slate-100 shadow-[0_4px_20px_rgba(0,0,0,0.03)] flex-1">
-                    <div className="w-12 h-12 bg-red-50 rounded-[1.2rem] flex items-center justify-center mb-4">
-                       <AlertCircle size={22} className="text-red-500" />
-                    </div>
-                    <p className="text-[10px] uppercase font-black tracking-[0.2em] text-slate-400 mb-2">Inadimplente</p>
-                    <p className="text-[1.8rem] font-black text-red-500 tracking-tighter leading-none mb-1">
-                       R$ {receivables.totalOverdue.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
-                    </p>
-                    <p className="text-[12px] font-semibold text-slate-400 mt-2">
-                      {receivables.totalAmount > 0
-                        ? `${Math.round((receivables.totalOverdue / receivables.totalAmount) * 100)}% do total`
-                        : 'Vencido / em atraso'}
-                    </p>
-                 </div>
-              </div>
-           </div>
-         )}
-      </motion.div>
 
       {/* ── Disclaimer ── */}
       <motion.div
