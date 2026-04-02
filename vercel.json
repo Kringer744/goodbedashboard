@@ -6,6 +6,10 @@
     {
       "source": "/evo-api/:path*",
       "destination": "https://evo-integracao-api.w12app.com.br/:path*"
+    },
+    {
+      "source": "/evo-integracao/:path*",
+      "destination": "https://evo-integracao.w12app.com.br/:path*"
     }
   ],
   "headers": [
@@ -15,6 +19,12 @@
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "X-Frame-Options", "value": "DENY" }
       ]
+    }
+  ],
+  "crons": [
+    {
+      "path": "/api/warm-cache",
+      "schedule": "0 8 * * *"
     }
   ]
 }
