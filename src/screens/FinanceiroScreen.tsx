@@ -183,7 +183,7 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
         />
         <StatsCard
           title="Recebimento Mês"
-          value={receivablesLoading ? '—' : receivables ? `R$ ${receivables.totalReceived.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
+          value={receivablesLoading ? '—' : receivables ? `R$ ${receivables.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
           trend={receivablesLoading ? 'Carregando…' : receivables ? `${receivables.total} lançamentos` : receivablesError ? 'Erro ao carregar' : '—'}
           icon={DollarSign}
           color="accent"
