@@ -679,3 +679,129 @@ export async function fetchAvgTicket(): Promise<TicketData> {
   localStorage.setItem(cacheKey, JSON.stringify({ data: result, timestamp: Date.now() }));
   return result;
 }
+
+// ─── Receivables (Recebíveis) ─────────────────────────────────────────────────
+
+export interface ReceivableRow {
+  [key: string]: any;
+}
+
+export interface ReceivablesData {
+  data: ReceivableRow[];
+  period: string;
+  total: number;
+  totalReceived: number;
+  totalPending: number;
+  totalOverdue: number;
+  totalAmount: number;
+}
+
+const RECEIVABLES_CACHE_KEY = 'gb_receivables_data';
+const RECEIVABLES_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
+
+export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<ReceivablesData> {
+  // Check cache
+  const cached = localStorage.getItem(RECEIVABLES_CACHE_KEY);
+  if (cached) {
+    try {
+      const parsed = JSON.parse(cached);
+      if (Date.now() - parsed.timestamp < RECEIVABLES_CACHE_TTL) {
+        console.log('[Receivables] Using cached data');
+        return parsed.data;
+      }
+    } catch { /* ignore */ }
+  }
+
+  // Default to current month
+  const now = new Date();
+  const firstDay = new Date(now.getFullYear(), now.getMonth(), 1);
+  const lastDay  = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+  const fmt = (d: Date) => d.toISOString().split('T')[0];
+
+  const from = dtFrom ?? fmt(firstDay);
+  const to   = dtTo   ?? fmt(lastDay);
+
+  // Use first unit token for auth
+  const firstToken = Object.values(UNITS)[0].token;
+  const authHeader = 'Basic ' + btoa(`${DNS}:${firstToken}`);
+
+  const url = `/evo-integracao/api/v1/receivables/summary-excel?dtLancamentoDe=${from}&dtLancamentoAte=${to}`;
+  console.log(`[Receivables] Fetching: ${url}`);
+
+  const res = await fetch(url, {
+    headers: { 'Authorization': authHeader },
+  });
+
+  if (!res.ok) {
+    throw new Error(`Receivables API ${res.status}`);
+  }
+
+  const { read, utils } = await import('xlsx');
+
+  const buffer = await res.arrayBuffer();
+  const workbook = read(new Uint8Array(buffer), { type: 'array' });
+
+  const sheetName = workbook.SheetNames[0];
+  const worksheet = workbook.Sheets[sheetName];
+  const rawData: ReceivableRow[] = utils.sheet_to_json(worksheet);
+
+  // Normalize keys (trim whitespace)
+  const data = rawData.map(row => {
+    const newRow: ReceivableRow = {};
+    for (const key in row) {
+      newRow[key.trim()] = row[key];
+    }
+    return newRow;
+  });
+
+  console.log(`[Receivables] Parsed ${data.length} rows. Sample keys:`, data[0] ? Object.keys(data[0]) : []);
+
+  // Calculate totals — try common column names
+  const amountKey  = findKey(data[0], ['Valor', 'valor', 'Value', 'value', 'Total', 'total', 'ValorLiquido', 'Valor Líquido']);
+  const statusKey  = findKey(data[0], ['Status', 'status', 'Situação', 'situacao', 'Situacao']);
+
+  let totalAmount   = 0;
+  let totalReceived = 0;
+  let totalPending  = 0;
+  let totalOverdue  = 0;
+
+  for (const row of data) {
+    const amount = typeof row[amountKey] === 'number' ? row[amountKey] : parseFloat(String(row[amountKey] ?? '0').replace(',', '.')) || 0;
+    totalAmount += amount;
+
+    const status = String(row[statusKey] ?? '').toLowerCase();
+    if (status.includes('pago') || status.includes('receb') || status.includes('liquidado') || status.includes('paid')) {
+      totalReceived += amount;
+    } else if (status.includes('atraso') || status.includes('vencido') || status.includes('overdue')) {
+      totalOverdue += amount;
+    } else {
+      totalPending += amount;
+    }
+  }
+
+  const result: ReceivablesData = {
+    data,
+    period: `${from} até ${to}`,
+    total: data.length,
+    totalReceived,
+    totalPending,
+    totalOverdue,
+    totalAmount,
+  };
+
+  localStorage.setItem(RECEIVABLES_CACHE_KEY, JSON.stringify({ data: result, timestamp: Date.now() }));
+  return result;
+}
+
+function findKey(row: ReceivableRow | undefined, candidates: string[]): string {
+  if (!row) return candidates[0];
+  for (const c of candidates) {
+    if (c in row) return c;
+  }
+  const keys = Object.keys(row);
+  for (const c of candidates) {
+    const found = keys.find(k => k.toLowerCase().includes(c.toLowerCase()));
+    if (found) return found;
+  }
+  return candidates[0];
+}

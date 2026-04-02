@@ -12,6 +12,12 @@ export default defineConfig({
         secure: true,
         rewrite: (path) => path.replace(/^\/evo-api/, ''),
       },
+      '/evo-integracao': {
+        target: 'https://evo-integracao.w12app.com.br',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/evo-integracao/, ''),
+      },
     },
   },
 })
