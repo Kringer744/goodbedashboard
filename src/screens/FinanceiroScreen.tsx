@@ -12,7 +12,7 @@ import {
 } from '../services/evoApi';
 import type { DashboardData } from '../App';
 import { StatsCard } from '../components/StatsCard';
-import { AlertCircle, ArrowUpRight, DollarSign } from 'lucide-react';
+import { AlertCircle, DollarSign } from 'lucide-react';
 
 interface Props {
   data: DashboardData | null;
