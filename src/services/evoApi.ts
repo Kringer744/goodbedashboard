@@ -686,6 +686,12 @@ export interface ReceivableRow {
   [key: string]: any;
 }
 
+export interface ReceivablesUnitData {
+  unitName: string;
+  amount: number;
+  rows: number;
+}
+
 export interface ReceivablesData {
   data: ReceivableRow[];
   period: string;
@@ -694,9 +700,10 @@ export interface ReceivablesData {
   totalPending: number;
   totalOverdue: number;
   totalAmount: number;
+  perUnit: ReceivablesUnitData[];
 }
 
-const RECEIVABLES_CACHE_KEY = 'gb_receivables_data_v3';
+const RECEIVABLES_CACHE_KEY = 'gb_receivables_data_v4';
 const RECEIVABLES_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<ReceivablesData> {
@@ -752,11 +759,13 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
     })
   );
 
-  // Merge all rows
+  // Merge all rows, keeping per-unit data
   const allRows: ReceivableRow[] = [];
-  for (const r of unitResults) {
-    if (r.status === 'fulfilled') allRows.push(...r.value.rows);
-  }
+  const fulfilledUnits = unitResults
+    .map((r, i) => r.status === 'fulfilled' ? { unitName: unitEntries[i][0], rows: r.value.rows } : null)
+    .filter(Boolean) as { unitName: string; rows: ReceivableRow[] }[];
+
+  for (const u of fulfilledUnits) allRows.push(...u.rows);
 
   const sampleKeys = allRows[0] ? Object.keys(allRows[0]) : [];
   console.log(`[Receivables] Total rows across all units: ${allRows.length}. Keys:`, sampleKeys);
@@ -776,22 +785,33 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
 
   console.log(`[Receivables] amountKey="${amountKey}" statusKey="${statusKey}"`);
 
+  function calcAmount(row: ReceivableRow): number {
+    if (amountKey && row[amountKey] !== undefined) {
+      return typeof row[amountKey] === 'number'
+        ? row[amountKey]
+        : parseFloat(String(row[amountKey]).replace(/\./g, '').replace(',', '.')) || 0;
+    }
+    let sum = 0;
+    for (const k of Object.keys(row)) {
+      if (typeof row[k] === 'number' && row[k] > 0) sum += row[k];
+    }
+    return sum;
+  }
+
   let totalAmount   = 0;
   let totalReceived = 0;
   let totalPending  = 0;
   let totalOverdue  = 0;
 
+  // Per-unit breakdown
+  const perUnit: ReceivablesUnitData[] = fulfilledUnits.map(u => {
+    let unitAmount = 0;
+    for (const row of u.rows) unitAmount += calcAmount(row);
+    return { unitName: u.unitName, amount: unitAmount, rows: u.rows.length };
+  }).filter(u => u.rows > 0).sort((a, b) => b.amount - a.amount);
+
   for (const row of allRows) {
-    let amount = 0;
-    if (amountKey && row[amountKey] !== undefined) {
-      amount = typeof row[amountKey] === 'number'
-        ? row[amountKey]
-        : parseFloat(String(row[amountKey]).replace(/\./g, '').replace(',', '.')) || 0;
-    } else {
-      for (const k of Object.keys(row)) {
-        if (typeof row[k] === 'number' && row[k] > 0) amount += row[k];
-      }
-    }
+    const amount = calcAmount(row);
     totalAmount += amount;
 
     const status = String(row[statusKey] ?? '').toLowerCase();
@@ -805,6 +825,7 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
   }
 
   console.log(`[Receivables] Totals — amount: ${totalAmount}, received: ${totalReceived}, pending: ${totalPending}, overdue: ${totalOverdue}`);
+  console.log('[Receivables] Per unit:', perUnit);
 
   const result: ReceivablesData = {
     data: allRows,
@@ -814,6 +835,7 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
     totalPending,
     totalOverdue,
     totalAmount,
+    perUnit,
   };
 
   localStorage.setItem(RECEIVABLES_CACHE_KEY, JSON.stringify({ data: result, timestamp: Date.now() }));

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { TrendingUp, TrendingDown, Users, Zap, BarChart2, RefreshCw, ChevronDown } from 'lucide-react';
+import { TrendingUp, TrendingDown, Users, Zap, BarChart2, RefreshCw, ChevronDown, X } from 'lucide-react';
 import {
   formatNumber,
   fetchAvgTicket,
@@ -9,6 +9,7 @@ import {
   type TicketData,
   type BranchMemberships,
   type ReceivablesData,
+  type ReceivablesUnitData,
 } from '../services/evoApi';
 import type { DashboardData } from '../App';
 import { StatsCard } from '../components/StatsCard';
@@ -30,9 +31,10 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
   const [ticket, setTicket]                     = useState(180);
   const [ticketOverridden, setTicketOverridden] = useState(false);
   const [expandedUnit, setExpandedUnit]         = useState<string | null>(null);
-  const [receivables, setReceivables]           = useState<ReceivablesData | null>(null);
+  const [receivables, setReceivables]               = useState<ReceivablesData | null>(null);
   const [receivablesLoading, setReceivablesLoading] = useState(true);
-  const [receivablesError, setReceivablesError] = useState<string | null>(null);
+  const [receivablesError, setReceivablesError]     = useState<string | null>(null);
+  const [showReceivablesModal, setShowReceivablesModal] = useState(false);
 
   const loadTickets = (forceRefresh = false) => {
     if (forceRefresh) clearMembershipCache();
@@ -181,14 +183,19 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
           color="primary"
           isLoading={isLoading}
         />
-        <StatsCard
-          title="Recebimento Mês"
-          value={receivablesLoading ? '—' : receivables ? `R$ ${receivables.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
-          trend={receivablesLoading ? 'Carregando…' : receivables ? `${receivables.total} lançamentos` : receivablesError ? 'Erro ao carregar' : '—'}
-          icon={DollarSign}
-          color="accent"
-          isLoading={receivablesLoading}
-        />
+        <div
+          className="cursor-pointer"
+          onClick={() => receivables && setShowReceivablesModal(true)}
+        >
+          <StatsCard
+            title="Recebimento Mês"
+            value={receivablesLoading ? '—' : receivables ? `R$ ${receivables.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : '—'}
+            trend={receivablesLoading ? 'Carregando…' : receivables ? `Ver por unidade →` : receivablesError ? 'Erro ao carregar' : '—'}
+            icon={DollarSign}
+            color="accent"
+            isLoading={receivablesLoading}
+          />
+        </div>
       </div>
 
       {/* ── Planos por Unidade ── */}
@@ -441,6 +448,93 @@ export function FinanceiroScreen({ data, isLoading }: Props) {
           </p>
         </div>
       </motion.div>
+
+      {/* ── Modal Recebimento por Unidade ── */}
+      <AnimatePresence>
+        {showReceivablesModal && receivables && (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/40 backdrop-blur-sm"
+            onClick={() => setShowReceivablesModal(false)}
+          >
+            <motion.div
+              initial={{ scale: 0.95, opacity: 0, y: 20 }}
+              animate={{ scale: 1, opacity: 1, y: 0 }}
+              exit={{ scale: 0.95, opacity: 0, y: 20 }}
+              transition={{ duration: 0.25, ease: [0.22, 1, 0.36, 1] }}
+              className="bg-white rounded-[2.5rem] shadow-2xl w-full max-w-lg overflow-hidden"
+              onClick={e => e.stopPropagation()}
+            >
+              {/* Header */}
+              <div className="px-10 pt-10 pb-6 border-b border-slate-100 flex items-start justify-between gap-4">
+                <div>
+                  <div className="flex items-center gap-3 mb-1">
+                    <div className="w-9 h-9 bg-accent/10 rounded-xl flex items-center justify-center">
+                      <DollarSign size={18} className="text-primary" />
+                    </div>
+                    <p className="text-[11px] font-black uppercase tracking-[0.2em] text-slate-400">Recebimento por Unidade</p>
+                  </div>
+                  <p className="text-[13px] text-slate-400 font-semibold mt-1">{receivables.period}</p>
+                </div>
+                <button
+                  onClick={() => setShowReceivablesModal(false)}
+                  className="w-9 h-9 rounded-xl bg-slate-100 flex items-center justify-center hover:bg-slate-200 transition-colors shrink-0"
+                >
+                  <X size={16} className="text-slate-500" />
+                </button>
+              </div>
+
+              {/* Unit list */}
+              <div className="px-10 py-6 space-y-3 max-h-[60vh] overflow-y-auto">
+                {receivables.perUnit.length === 0 ? (
+                  <p className="text-slate-400 text-center py-8 font-semibold">Nenhum dado por unidade disponível</p>
+                ) : (
+                  <>
+                    {receivables.perUnit.map((u: ReceivablesUnitData, i: number) => {
+                      const maxAmount = receivables.perUnit[0]?.amount ?? 1;
+                      const pct = maxAmount > 0 ? Math.round((u.amount / maxAmount) * 100) : 0;
+                      return (
+                        <div key={u.unitName}>
+                          <div className="flex items-center justify-between mb-1.5">
+                            <div className="flex items-center gap-2">
+                              <span className="w-6 h-6 rounded-lg bg-slate-100 flex items-center justify-center text-[9px] font-black text-primary shrink-0">
+                                {u.unitName.slice(0, 2).toUpperCase()}
+                              </span>
+                              <span className="font-bold text-[14px] text-slate-700">{u.unitName}</span>
+                              <span className="text-[11px] text-slate-400 font-semibold">{u.rows} lanç.</span>
+                            </div>
+                            <span className="font-black text-primary text-[14px] shrink-0 ml-4">
+                              R$ {u.amount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                            </span>
+                          </div>
+                          <div className="h-2 bg-slate-100 rounded-full overflow-hidden">
+                            <motion.div
+                              initial={{ width: 0 }}
+                              animate={{ width: `${pct}%` }}
+                              transition={{ duration: 0.6, ease: [0.22, 1, 0.36, 1], delay: i * 0.05 }}
+                              className={`h-full rounded-full ${i === 0 ? 'bg-gradient-to-r from-primary to-accent' : 'bg-slate-300'}`}
+                            />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </div>
+
+              {/* Footer total */}
+              <div className="px-10 py-6 bg-[#F9FBF9] border-t border-slate-100 flex items-center justify-between">
+                <span className="text-[11px] font-black uppercase tracking-widest text-slate-400">Total Geral</span>
+                <span className="text-[1.6rem] font-black text-primary tracking-tighter">
+                  R$ {receivables.totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                </span>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
