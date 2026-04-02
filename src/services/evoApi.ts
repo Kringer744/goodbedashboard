@@ -696,7 +696,7 @@ export interface ReceivablesData {
   totalAmount: number;
 }
 
-const RECEIVABLES_CACHE_KEY = 'gb_receivables_data_v2';
+const RECEIVABLES_CACHE_KEY = 'gb_receivables_data_v3';
 const RECEIVABLES_CACHE_TTL = 15 * 60 * 1000; // 15 minutes
 
 export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<ReceivablesData> {
@@ -721,71 +721,73 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
   const from = dtFrom ?? fmt(firstDay);
   const to   = dtTo   ?? fmt(lastDay);
 
-  // Use first unit token for auth
-  const firstToken = Object.values(UNITS)[0].token;
-  const authHeader = 'Basic ' + btoa(`${DNS}:${firstToken}`);
-
-  const url = `/evo-integracao/api/v1/receivables/summary-excel?dtLancamentoDe=${from}&dtLancamentoAte=${to}`;
-  console.log(`[Receivables] Fetching: ${url}`);
-
-  const res = await fetch(url, {
-    headers: { 'Authorization': authHeader },
-  });
-
-  if (!res.ok) {
-    throw new Error(`Receivables API ${res.status}`);
-  }
-
   const { read, utils } = await import('xlsx');
 
-  const buffer = await res.arrayBuffer();
-  const workbook = read(new Uint8Array(buffer), { type: 'array' });
+  // Fetch receivables for every unit in parallel (each has its own token)
+  const unitEntries = Object.entries(UNITS);
+  const unitResults = await Promise.allSettled(
+    unitEntries.map(async ([unitName, unit]) => {
+      const authHeader = 'Basic ' + btoa(`${DNS}:${unit.token}`);
+      const url = `/evo-integracao/api/v1/receivables/summary-excel?dtLancamentoDe=${from}&dtLancamentoAte=${to}`;
 
-  const sheetName = workbook.SheetNames[0];
-  const worksheet = workbook.Sheets[sheetName];
-  const rawData: ReceivableRow[] = utils.sheet_to_json(worksheet);
+      const res = await fetch(url, { headers: { 'Authorization': authHeader } });
+      if (!res.ok) {
+        console.warn(`[Receivables] ${unitName} → HTTP ${res.status}`);
+        return { unitName, rows: [] as ReceivableRow[] };
+      }
 
-  // Normalize keys (trim whitespace)
-  const data = rawData.map(row => {
-    const newRow: ReceivableRow = {};
-    for (const key in row) {
-      newRow[key.trim()] = row[key];
-    }
-    return newRow;
-  });
+      const buffer = await res.arrayBuffer();
+      const workbook = read(new Uint8Array(buffer), { type: 'array' });
+      const worksheet = workbook.Sheets[workbook.SheetNames[0]];
+      const rawRows: ReceivableRow[] = utils.sheet_to_json(worksheet);
 
-  const sampleKeys = data[0] ? Object.keys(data[0]) : [];
-  console.log(`[Receivables] Parsed ${data.length} rows. Keys:`, sampleKeys);
-  if (data[0]) console.log('[Receivables] Sample row:', data[0]);
+      const rows = rawRows.map(row => {
+        const newRow: ReceivableRow = {};
+        for (const key in row) newRow[key.trim()] = row[key];
+        return newRow;
+      });
 
-  // Find amount column — try known names, fallback to first numeric column
-  const amountKey = findKey(data[0], [
+      console.log(`[Receivables] ${unitName} → ${rows.length} rows`);
+      return { unitName, rows };
+    })
+  );
+
+  // Merge all rows
+  const allRows: ReceivableRow[] = [];
+  for (const r of unitResults) {
+    if (r.status === 'fulfilled') allRows.push(...r.value.rows);
+  }
+
+  const sampleKeys = allRows[0] ? Object.keys(allRows[0]) : [];
+  console.log(`[Receivables] Total rows across all units: ${allRows.length}. Keys:`, sampleKeys);
+  if (allRows[0]) console.log('[Receivables] Sample row:', allRows[0]);
+
+  // Detect amount and status columns from first row
+  const amountKey = findKey(allRows[0], [
     'Valor', 'valor', 'Valor Lançamento', 'ValorLancamento',
     'Valor Líquido', 'ValorLiquido', 'Value', 'value',
     'Total', 'total', 'Receita', 'receita',
-  ]) ?? sampleKeys.find(k => typeof data[0]?.[k] === 'number') ?? '';
+  ]) ?? sampleKeys.find(k => typeof allRows[0]?.[k] === 'number') ?? '';
 
-  const statusKey = findKey(data[0], [
+  const statusKey = findKey(allRows[0], [
     'Status', 'status', 'Situação', 'Situacao', 'situacao',
     'StatusPagamento', 'Status Pagamento',
   ]);
 
-  console.log(`[Receivables] Using amountKey="${amountKey}" statusKey="${statusKey}"`);
+  console.log(`[Receivables] amountKey="${amountKey}" statusKey="${statusKey}"`);
 
   let totalAmount   = 0;
   let totalReceived = 0;
   let totalPending  = 0;
   let totalOverdue  = 0;
 
-  for (const row of data) {
-    // Sum all numeric values in row if no amountKey found
+  for (const row of allRows) {
     let amount = 0;
     if (amountKey && row[amountKey] !== undefined) {
       amount = typeof row[amountKey] === 'number'
         ? row[amountKey]
         : parseFloat(String(row[amountKey]).replace(/\./g, '').replace(',', '.')) || 0;
     } else {
-      // fallback: sum all positive numeric values in the row
       for (const k of Object.keys(row)) {
         if (typeof row[k] === 'number' && row[k] > 0) amount += row[k];
       }
@@ -805,9 +807,9 @@ export async function fetchReceivables(dtFrom?: string, dtTo?: string): Promise<
   console.log(`[Receivables] Totals — amount: ${totalAmount}, received: ${totalReceived}, pending: ${totalPending}, overdue: ${totalOverdue}`);
 
   const result: ReceivablesData = {
-    data,
+    data: allRows,
     period: `${from} até ${to}`,
-    total: data.length,
+    total: allRows.length,
     totalReceived,
     totalPending,
     totalOverdue,
