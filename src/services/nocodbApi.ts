@@ -32,6 +32,16 @@ async function nocoPost(table: string, body: object): Promise<any> {
   return res.json();
 }
 
+async function nocoPatch(table: string, body: object): Promise<any> {
+  const res = await fetch(`${NOCO_BASE}/tables/${table}/records`, {
+    method: 'PATCH',
+    headers: { 'xc-token': NOCO_TOKEN, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error(`NocoDB PATCH ${res.status}`);
+  return res.json();
+}
+
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
 // Admin emails with full access
@@ -188,4 +198,53 @@ export async function fetchLancamentos(): Promise<LancamentoFinanceiro[]> {
 
 export async function saveLancamento(l: Omit<LancamentoFinanceiro, 'Id'>): Promise<void> {
   await nocoPost(TABLES.financeiro, l);
+}
+
+// ─── Gestão de Usuários (admin only) ─────────────────────────────────────────
+
+export interface GbUserRecord {
+  Id: number;
+  email: string;
+  name: string;
+  role: string;
+  active: boolean;
+  allowed_units?: string;
+  allowed_pages?: string;
+}
+
+export async function fetchAllUsers(): Promise<GbUserRecord[]> {
+  const data = await nocoGet(TABLES.users, '?limit=100&sort=name');
+  return (data?.list ?? []).map((r: GbUserRecord) => ({
+    Id:            r.Id,
+    email:         r.email,
+    name:          r.name,
+    role:          r.role,
+    active:        r.active,
+    allowed_units: r.allowed_units ?? 'all',
+    allowed_pages: r.allowed_pages ?? 'all',
+  }));
+}
+
+export async function updateUserPermissions(id: number, fields: Partial<GbUserRecord>): Promise<void> {
+  await nocoPatch(TABLES.users, { Id: id, ...fields });
+}
+
+export async function createNewUser(opts: {
+  email: string;
+  name: string;
+  role: string;
+  password: string;
+  allowed_units: string;
+  allowed_pages: string;
+}): Promise<void> {
+  const hash = await sha256(opts.password);
+  await nocoPost(TABLES.users, {
+    email:         opts.email,
+    name:          opts.name,
+    role:          opts.role,
+    password_hash: hash,
+    active:        true,
+    allowed_units: opts.allowed_units,
+    allowed_pages: opts.allowed_pages,
+  });
 }

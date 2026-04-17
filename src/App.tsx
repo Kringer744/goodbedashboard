@@ -11,7 +11,8 @@ import { KPIsScreen } from './screens/KPIsScreen';
 import { CampanhasScreen } from './screens/CampanhasScreen';
 import { MetasScreen } from './screens/MetasScreen';
 import { AgregadoresScreen } from './screens/AgregadoresScreen';
-import { getSession, clearSession, getAllowedPages, type GbUser } from './services/nocodbApi';
+import { AdminUsuariosScreen } from './screens/AdminUsuariosScreen';
+import { getSession, clearSession, getAllowedPages, isAdmin, type GbUser } from './services/nocodbApi';
 import {
   fetchTodayEntriesAllBranches,
   fetchAllBranchStats,
@@ -20,7 +21,7 @@ import {
   type BranchStats,
 } from './services/evoApi';
 
-export type Page = 'dashboard' | 'unidades' | 'membros' | 'financeiro' | 'kpis' | 'campanhas' | 'metas' | 'agregadores';
+export type Page = 'dashboard' | 'unidades' | 'membros' | 'financeiro' | 'kpis' | 'campanhas' | 'metas' | 'agregadores' | 'admin_usuarios';
 
 export interface DashboardData {
   totalActiveMembers: number;
@@ -37,15 +38,16 @@ export interface DashboardData {
 
 const FALLBACK_BARS = [40, 55, 65, 80, 75, 95, 100, 85, 70, 50, 40, 20];
 
-const ALL_NAV_ITEMS: { id: Page; label: string }[] = [
-  { id: 'dashboard',   label: 'Painel' },
-  { id: 'unidades',    label: 'Unidades' },
-  { id: 'financeiro',  label: 'Financeiro' },
-  { id: 'membros',     label: 'Membros' },
-  { id: 'metas',       label: 'Metas' },
-  { id: 'agregadores', label: 'Agregadores' },
-  { id: 'campanhas',   label: 'Marketing' },
-  { id: 'kpis',        label: 'KPIs' },
+const ALL_NAV_ITEMS: { id: Page; label: string; adminOnly?: boolean }[] = [
+  { id: 'dashboard',      label: 'Painel' },
+  { id: 'unidades',       label: 'Unidades' },
+  { id: 'financeiro',     label: 'Financeiro' },
+  { id: 'membros',        label: 'Membros' },
+  { id: 'metas',          label: 'Metas' },
+  { id: 'agregadores',    label: 'Agregadores' },
+  { id: 'campanhas',      label: 'Marketing' },
+  { id: 'kpis',           label: 'KPIs' },
+  { id: 'admin_usuarios', label: 'Usuários', adminOnly: true },
 ];
 
 function App() {
@@ -66,9 +68,10 @@ function App() {
     if (saved) { setCurrentUser(saved); setIsLoggedIn(true); }
   }, []);
 
-  // Filter nav items based on user permissions
+  // Filter nav items based on user permissions and admin-only flag
   const NAV_ITEMS = currentUser
     ? ALL_NAV_ITEMS.filter(item => {
+        if (item.adminOnly && !isAdmin(currentUser)) return false;
         const allowed = getAllowedPages(currentUser);
         return allowed === 'all' || allowed.includes(item.id);
       })
@@ -367,7 +370,8 @@ function App() {
             {currentPage === 'kpis'        && <KPIsScreen        data={data} isLoading={isLoading} />}
             {currentPage === 'campanhas'   && <CampanhasScreen />}
             {currentPage === 'metas'       && <MetasScreen       data={data} isLoading={isLoading} />}
-            {currentPage === 'agregadores' && <AgregadoresScreen />}
+            {currentPage === 'agregadores'    && <AgregadoresScreen />}
+            {currentPage === 'admin_usuarios' && <AdminUsuariosScreen />}
           </motion.div>
         </AnimatePresence>
       </main>
