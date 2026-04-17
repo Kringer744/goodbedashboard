@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { Target, Save, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
+import { Save, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
 import { UNITS } from '../services/evoApi';
 import { fetchKpis, saveKpi } from '../services/nocodbApi';
 import type { DashboardData } from '../App';
@@ -54,11 +54,9 @@ export function MetasScreen({ data, isLoading }: Props) {
     return init;
   });
 
-  const [isSaving, setIsSaving]   = useState(false);
+  const [isSaving, setIsSaving]       = useState(false);
   const [isLoadingMetas, setIsLoadingMetas] = useState(true);
-  const [savedAt, setSavedAt]     = useState<string | null>(null);
-  const [globalMetaAtivos, setGlobalMetaAtivos]   = useState(0);
-  const [globalMetaChurn, setGlobalMetaChurn]     = useState(5);
+  const [savedAt, setSavedAt]         = useState<string | null>(null);
 
   // Load saved metas from NocoDB
   useEffect(() => {
@@ -82,20 +80,6 @@ export function MetasScreen({ data, isLoading }: Props) {
 
   const handleChange = (unitName: string, field: keyof Omit<UnitMeta, 'unitName'>, value: number) => {
     setMetas(prev => ({ ...prev, [unitName]: { ...prev[unitName], [field]: value } }));
-  };
-
-  const applyGlobalToAll = () => {
-    setMetas(prev => {
-      const updated = { ...prev };
-      for (const name of unitNames) {
-        updated[name] = {
-          ...updated[name],
-          metaAtivos: globalMetaAtivos || updated[name].metaAtivos,
-          metaChurn:  globalMetaChurn  || updated[name].metaChurn,
-        };
-      }
-      return updated;
-    });
   };
 
   const handleSave = async () => {
@@ -137,7 +121,7 @@ export function MetasScreen({ data, isLoading }: Props) {
     <div className="max-w-7xl mx-auto px-6 py-10">
 
       {/* Header */}
-      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }} className="mb-12">
+      <motion.div initial={{ y: 20, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.5 }} className="mb-10">
         <span className="text-[11px] uppercase font-black text-primary tracking-[0.2em] mb-3 block">
           Planejamento Mensal
         </span>
@@ -145,49 +129,56 @@ export function MetasScreen({ data, isLoading }: Props) {
           Metas por <span className="text-accent">Unidade</span>
         </h1>
         <p className="text-slate-400 text-[16px] font-semibold max-w-xl">
-          Defina metas mensais de ativos, churn e inadimplentes para cada unidade. Período: <strong className="text-primary">{period}</strong>
+          Ativos e inadimplentes do mês por unidade, com metas individuais editáveis. Período: <strong className="text-primary">{period}</strong>
         </p>
       </motion.div>
 
-      {/* Global apply panel */}
-      <motion.div
-        initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4, delay: 0.1 }}
-        className="mb-10 p-7 bg-[#F0F7EC] border border-accent/20 rounded-[2.5rem] flex flex-col sm:flex-row items-start sm:items-center gap-6"
-      >
-        <div className="flex items-center gap-3">
-          <div className="w-12 h-12 bg-accent rounded-2xl flex items-center justify-center shadow-lg shadow-accent/20">
-            <Target size={20} className="text-primary" />
+      {/* Cards resumo por unidade — Ativos e Inadimplentes do Mês */}
+      {data && (
+        <motion.div
+          initial={{ y: 12, opacity: 0 }} animate={{ y: 0, opacity: 1 }} transition={{ duration: 0.4, delay: 0.1 }}
+          className="mb-10"
+        >
+          <div className="flex items-center gap-4 mb-5 border-l-[5px] border-l-accent pl-4">
+            <div>
+              <h2 className="text-[1.2rem] font-black text-primary tracking-tight">Situação Real por Unidade (Mês)</h2>
+              <p className="text-[12px] text-slate-400 font-semibold">Ativos e inadimplentes em tempo real via EVO</p>
+            </div>
           </div>
-          <div>
-            <p className="text-[12px] font-black text-primary uppercase tracking-widest">Aplicar Meta Global</p>
-            <p className="text-[12px] text-slate-500 font-semibold">Defina uma meta padrão para todas as unidades</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+            {unitNames.map(unitName => {
+              const { realAtivos, realInadimplentes, realChurn } = getRealValues(unitName);
+              const meta = metas[unitName];
+              const atingiuAtivos = meta.metaAtivos > 0 && realAtivos >= meta.metaAtivos;
+              const abaixoInadim  = meta.metaInadimplentes > 0 && realInadimplentes <= meta.metaInadimplentes;
+              return (
+                <div key={unitName} className="bg-white rounded-[2rem] border border-slate-100 p-6 shadow-[0_4px_16px_rgba(0,0,0,0.03)]">
+                  <p className="text-[11px] font-black text-slate-400 uppercase tracking-widest mb-4 truncate">{unitName}</p>
+                  <div className="flex gap-4">
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Ativos</p>
+                      <p className={`text-[1.6rem] font-black tracking-tighter leading-none ${atingiuAtivos ? 'text-emerald-600' : 'text-primary'}`}>
+                        {realAtivos.toLocaleString('pt-BR')}
+                      </p>
+                      {meta.metaAtivos > 0 && (
+                        <p className="text-[10px] font-bold text-slate-400 mt-1">meta {meta.metaAtivos.toLocaleString('pt-BR')}</p>
+                      )}
+                    </div>
+                    <div className="w-px bg-slate-100" />
+                    <div className="flex-1">
+                      <p className="text-[10px] font-black text-slate-400 uppercase tracking-wider mb-1">Inadimpl.</p>
+                      <p className={`text-[1.6rem] font-black tracking-tighter leading-none ${abaixoInadim ? 'text-emerald-600' : realInadimplentes > 0 ? 'text-amber-500' : 'text-primary'}`}>
+                        {realInadimplentes.toLocaleString('pt-BR')}
+                      </p>
+                      <p className="text-[10px] font-bold text-slate-400 mt-1">{realChurn}% evasão</p>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
-        </div>
-        <div className="flex items-center gap-4 ml-auto flex-wrap">
-          <div className="flex items-center gap-2 bg-white p-2.5 rounded-2xl border border-slate-100 shadow-inner">
-            <span className="text-[11px] font-black text-slate-400 ml-2">ATIVOS</span>
-            <input
-              type="number" value={globalMetaAtivos || ''} placeholder="Meta"
-              onChange={e => setGlobalMetaAtivos(Math.max(0, Number(e.target.value)))}
-              className="w-24 text-center py-1.5 px-2 bg-slate-50 rounded-xl text-[14px] font-black text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-          </div>
-          <div className="flex items-center gap-2 bg-white p-2.5 rounded-2xl border border-slate-100 shadow-inner">
-            <span className="text-[11px] font-black text-slate-400 ml-2">CHURN %</span>
-            <input
-              type="number" value={globalMetaChurn} step="0.5"
-              onChange={e => setGlobalMetaChurn(Math.max(0, Number(e.target.value)))}
-              className="w-20 text-center py-1.5 px-2 bg-slate-50 rounded-xl text-[14px] font-black text-primary focus:outline-none focus:ring-2 focus:ring-accent/30"
-            />
-          </div>
-          <button
-            onClick={applyGlobalToAll}
-            className="px-5 py-2.5 bg-primary text-white rounded-2xl text-[11px] font-black uppercase tracking-widest hover:bg-primary/90 transition-all"
-          >
-            Aplicar a Todas
-          </button>
-        </div>
-      </motion.div>
+        </motion.div>
+      )}
 
       {/* Metas table */}
       <motion.div
