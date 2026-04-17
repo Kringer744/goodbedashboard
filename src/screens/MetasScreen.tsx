@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
 import { Target, Save, RefreshCw, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { UNITS, type BranchStats } from '../services/evoApi';
-import { fetchKpis, saveKpi, type Kpi } from '../services/nocodbApi';
+import { UNITS } from '../services/evoApi';
+import { fetchKpis, saveKpi } from '../services/nocodbApi';
 import type { DashboardData } from '../App';
 
 interface Props {
@@ -59,7 +59,6 @@ export function MetasScreen({ data, isLoading }: Props) {
   const [savedAt, setSavedAt]     = useState<string | null>(null);
   const [globalMetaAtivos, setGlobalMetaAtivos]   = useState(0);
   const [globalMetaChurn, setGlobalMetaChurn]     = useState(5);
-  const [applyGlobal, setApplyGlobal]             = useState(false);
 
   // Load saved metas from NocoDB
   useEffect(() => {
