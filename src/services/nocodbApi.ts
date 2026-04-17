@@ -34,11 +34,37 @@ async function nocoPost(table: string, body: object): Promise<any> {
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
+// Admin emails with full access
+export const ADMIN_EMAILS = [
+  'marcelo.santanna@goodbe.com.br',
+  'fluxodigitaltech@gmail.com',
+];
+
 export interface GbUser {
   Id: number;
   email: string;
   name: string;
   role: string;
+  // Comma-separated unit names or "all" — set by admin in NocoDB users table
+  allowed_units?: string;
+  // Comma-separated page IDs or "all" — set by admin in NocoDB users table
+  allowed_pages?: string;
+}
+
+export function isAdmin(user: GbUser): boolean {
+  return user.role === 'admin' || ADMIN_EMAILS.includes(user.email.toLowerCase());
+}
+
+export function getAllowedUnits(user: GbUser): string[] | 'all' {
+  if (isAdmin(user)) return 'all';
+  if (!user.allowed_units || user.allowed_units === 'all') return 'all';
+  return user.allowed_units.split(',').map(s => s.trim()).filter(Boolean);
+}
+
+export function getAllowedPages(user: GbUser): string[] | 'all' {
+  if (isAdmin(user)) return 'all';
+  if (!user.allowed_pages || user.allowed_pages === 'all') return 'all';
+  return user.allowed_pages.split(',').map(s => s.trim()).filter(Boolean);
 }
 
 async function sha256(text: string): Promise<string> {
@@ -55,7 +81,14 @@ export async function loginWithNocoDB(email: string, password: string): Promise<
   );
   const record = data?.list?.[0];
   if (!record) throw new Error('Credenciais inválidas ou acesso inativo.');
-  return { Id: record.Id, email: record.email, name: record.name, role: record.role };
+  return {
+    Id:            record.Id,
+    email:         record.email,
+    name:          record.name,
+    role:          record.role,
+    allowed_units: record.allowed_units ?? 'all',
+    allowed_pages: record.allowed_pages ?? 'all',
+  };
 }
 
 export function saveSession(user: GbUser) {

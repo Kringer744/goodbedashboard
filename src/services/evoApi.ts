@@ -42,7 +42,7 @@ export const STATUS = { ACTIVE: 1, INACTIVE: 2 } as const;
 export function getMemberStatusLabel(s: string): string {
   const n = (s ?? '').toLowerCase();
   if (n === 'active')                        return 'Aluno';
-  if (n === 'inactive')                      return 'Oportunidade';
+  if (n === 'inactive')                      return 'Inadimplente';
   if (n === 'cancelled' || n === 'canceled') return 'Cancelado';
   if (n === 'suspended')                     return 'Suspenso';
   return s || 'Desconhecido';

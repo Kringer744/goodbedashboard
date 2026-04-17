@@ -3,10 +3,10 @@ import { Mail, Lock, Eye, ArrowRight, Shield, HelpCircle, LayoutGrid, Users, Act
 import { motion } from 'framer-motion';
 import gbElement from '../assets/gb_element-2.png';
 import goodbeLogotipoNeg from '../assets/Goodbe-Logotipo-Negativo.png';
-import { loginWithNocoDB, saveSession } from '../services/nocodbApi';
+import { loginWithNocoDB, saveSession, type GbUser } from '../services/nocodbApi';
 
 interface LoginScreenProps {
-    onLogin: () => void;
+    onLogin: (user: GbUser) => void;
 }
 
 export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
@@ -111,7 +111,7 @@ export const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin }) => {
                                 try {
                                     const user = await loginWithNocoDB(email, password);
                                     saveSession(user);
-                                    onLogin();
+                                    onLogin(user);
                                 } catch (err: any) {
                                     setError(err.message ?? 'Erro ao autenticar.');
                                 } finally {

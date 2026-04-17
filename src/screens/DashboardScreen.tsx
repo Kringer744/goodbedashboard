@@ -10,6 +10,8 @@ import {
   Download,
   Filter,
   Calendar,
+  ChevronDown,
+  AlertTriangle,
 } from 'lucide-react';
 import { type DashboardData, type Page } from '../App';
 import { StatsCard } from '../components/StatsCard';
@@ -41,7 +43,20 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
   const [dateFrom, setDateFrom] = useState(monthAgoStr());
   const [dateTo, setDateTo] = useState(todayStr());
   const [lastMonthEntries, setLastMonthEntries] = useState<number | null>(null);
+  const [filterUnit, setFilterUnit] = useState<string>('all');
   const bars = data?.barData ?? FALLBACK_BARS;
+
+  // Filtered units based on selected store
+  const filteredUnits = filterUnit === 'all'
+    ? (data?.units ?? [])
+    : (data?.units ?? []).filter(u => u.name === filterUnit);
+
+  // Aggregated stats for filtered view
+  const filteredActive   = filteredUnits.reduce((s, u) => s + u.activeMembers, 0);
+  const filteredInactive = filteredUnits.reduce((s, u) => s + u.inactiveMembers, 0);
+  const filteredTotal    = filteredActive + filteredInactive;
+  const filteredEvasao   = filteredTotal > 0 ? Math.round((filteredInactive / filteredTotal) * 100) : 0;
+  const filteredRetencao = filteredTotal > 0 ? Math.round((filteredActive   / filteredTotal) * 100) : 0;
 
   useEffect(() => {
     const lastMonth = new Date();
@@ -115,8 +130,20 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
               className="bg-transparent text-[11px] font-black text-primary focus:outline-none w-[110px] cursor-pointer"
             />
           </div>
-          <div className="flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-2xl text-[10px] font-black text-slate-400 uppercase tracking-widest">
-            <Filter size={12} /> Filtro: <span className="text-primary">Geral</span>
+          {/* Filtro por Unidade */}
+          <div className="relative flex items-center gap-2 px-4 py-2 bg-slate-50 border border-slate-100 rounded-2xl text-[11px] font-black text-slate-500">
+            <Filter size={12} className="text-primary shrink-0" />
+            <select
+              value={filterUnit}
+              onChange={e => setFilterUnit(e.target.value)}
+              className="bg-transparent text-[11px] font-black text-primary focus:outline-none cursor-pointer appearance-none pr-5"
+            >
+              <option value="all">Todas as Unidades</option>
+              {Object.keys(UNITS).map(name => (
+                <option key={name} value={name}>{name}</option>
+              ))}
+            </select>
+            <ChevronDown size={11} className="absolute right-3 text-slate-400 pointer-events-none" />
           </div>
           <button
             disabled={generatingPdf || !data}
@@ -154,27 +181,27 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
       </motion.div>
 
       {/* ── Stats Grid ── */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-16">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6 gap-6 mb-16">
         <StatsCard
           title="Membros Ativos"
-          value={data ? formatNumber(data.totalActiveMembers) : '—'}
-          trend="Status: Ativo na EVO"
+          value={data ? formatNumber(filterUnit === 'all' ? data.totalActiveMembers : filteredActive) : '—'}
+          trend={`Retenção: ${filterUnit === 'all' ? (data?.retentionRate ?? 0) : filteredRetencao}%`}
           icon={Users}
           color="primary"
           isLoading={isLoading}
         />
         <StatsCard
-          title="Entradas Hoje"
+          title="Presenças Hoje"
           value={data ? formatNumber(data.todayEntries) : '—'}
-          trend="Check-ins registrados hoje"
-          comparison={lastMonthEntries === null ? 'Mês passado neste dia: carregando…' : `Mês passado neste dia: ${lastMonthEntries.toLocaleString('pt-BR')} entradas`}
+          trend="Presenças registradas hoje"
+          comparison={lastMonthEntries === null ? 'Mês passado neste dia: carregando…' : `Mês passado neste dia: ${lastMonthEntries.toLocaleString('pt-BR')} presenças`}
           icon={Activity}
           color="accent"
           isLoading={isLoading}
         />
         <StatsCard
           title="MRR Estimado"
-          value={data ? `R$ ${receita.toLocaleString('pt-BR')}` : '—'}
+          value={data ? `R$ ${(filterUnit === 'all' ? receita : filteredActive * avgTicket).toLocaleString('pt-BR')}` : '—'}
           trend={`Ticket médio R$ ${avgTicket}`}
           icon={TrendingUp}
           color="primary"
@@ -189,9 +216,17 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
           isLoading={isLoading}
         />
         <StatsCard
-          title="Membros Inativos"
-          value={data ? formatNumber(data.totalInactiveMembers) : '—'}
-          trend="Reativação pendente"
+          title="Inadimplentes (Mês)"
+          value={data ? formatNumber(filterUnit === 'all' ? data.totalInactiveMembers : filteredInactive) : '—'}
+          trend={data ? `${filterUnit === 'all' ? (100 - (data.retentionRate ?? 0)) : filteredEvasao}% da base ativa` : 'Reativação pendente'}
+          icon={AlertTriangle}
+          color="amber"
+          isLoading={isLoading}
+        />
+        <StatsCard
+          title="% Evasão (Mês)"
+          value={data ? `${filterUnit === 'all' ? (100 - (data.retentionRate ?? 0)) : filteredEvasao}%` : '—'}
+          trend={data ? `${filterUnit === 'all' ? data.totalInactiveMembers : filteredInactive} saíram no período` : '—'}
           icon={TrendingUp}
           color="amber"
           isLoading={isLoading}
@@ -219,7 +254,7 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
                 <div key={i} className="h-72 bg-slate-50 rounded-[3rem] animate-pulse border border-slate-100" />
               ))
             ) : (
-              data?.units.slice(0, 3).map((unit) => (
+              (filterUnit === 'all' ? data?.units ?? [] : filteredUnits).slice(0, 3).map((unit) => (
                 <UnitCard
                   key={unit.name}
                   unit={unit}
@@ -244,7 +279,7 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
                Velocidade da <span className="text-accent">Rede</span>
             </h3>
             <p className="text-slate-400 text-[17px] font-semibold max-w-lg">
-               Distribuição de check-ins agregados em todas as unidades nas últimas 24 horas.
+               Distribuição de presenças agregadas em todas as unidades nas últimas 24 horas.
             </p>
           </div>
           <div className="flex items-center gap-5 bg-white p-4 rounded-[2.5rem] border border-slate-100 shadow-xl shadow-slate-200/20">
@@ -295,7 +330,7 @@ export function DashboardScreen({ data, isLoading, onNavigate, onNavigateToMembe
          <div className="flex items-center justify-between mb-12 border-l-[6px] border-l-accent pl-6">
             <div>
                <h2 className="text-[2.2rem] font-black text-[#1E293B] tracking-tight">Mapa de Calor Operacional</h2>
-               <p className="text-[14px] text-slate-400 font-bold uppercase tracking-widest mt-1">Check-ins por Horário · Hoje (EVO)</p>
+               <p className="text-[14px] text-slate-400 font-bold uppercase tracking-widest mt-1">Presenças por Horário · Hoje (EVO)</p>
             </div>
             <div className="flex gap-4">
               <div className="flex items-center gap-2"><div className="w-4 h-4 rounded-md bg-[#F1F5F9]" /><span className="text-[11px] font-black text-slate-400">Vazia</span></div>

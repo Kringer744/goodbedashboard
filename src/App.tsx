@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { RefreshCw, Bell, Search, X as XIcon } from 'lucide-react';
+import { RefreshCw, Bell, Search, X as XIcon, LogOut } from 'lucide-react';
 import gbEncurtado from './assets/gb_encurtado.png';
 import { motion, AnimatePresence } from 'framer-motion';
 import { LoginScreen } from './components/LoginScreen';
@@ -9,6 +9,9 @@ import { MembrosScreen } from './screens/MembrosScreen';
 import { FinanceiroScreen } from './screens/FinanceiroScreen';
 import { KPIsScreen } from './screens/KPIsScreen';
 import { CampanhasScreen } from './screens/CampanhasScreen';
+import { MetasScreen } from './screens/MetasScreen';
+import { AgregadoresScreen } from './screens/AgregadoresScreen';
+import { getSession, clearSession, getAllowedPages, type GbUser } from './services/nocodbApi';
 import {
   fetchTodayEntriesAllBranches,
   fetchAllBranchStats,
@@ -17,7 +20,7 @@ import {
   type BranchStats,
 } from './services/evoApi';
 
-export type Page = 'dashboard' | 'unidades' | 'membros' | 'financeiro' | 'kpis' | 'campanhas';
+export type Page = 'dashboard' | 'unidades' | 'membros' | 'financeiro' | 'kpis' | 'campanhas' | 'metas' | 'agregadores';
 
 export interface DashboardData {
   totalActiveMembers: number;
@@ -34,17 +37,20 @@ export interface DashboardData {
 
 const FALLBACK_BARS = [40, 55, 65, 80, 75, 95, 100, 85, 70, 50, 40, 20];
 
-const NAV_ITEMS: { id: Page; label: string }[] = [
+const ALL_NAV_ITEMS: { id: Page; label: string }[] = [
   { id: 'dashboard',   label: 'Painel' },
   { id: 'unidades',    label: 'Unidades' },
   { id: 'financeiro',  label: 'Financeiro' },
   { id: 'membros',     label: 'Membros' },
-  { id: 'campanhas',   label: 'Campanhas' },
+  { id: 'metas',       label: 'Metas' },
+  { id: 'agregadores', label: 'Agregadores' },
+  { id: 'campanhas',   label: 'Marketing' },
   { id: 'kpis',        label: 'KPIs' },
 ];
 
 function App() {
   const [isLoggedIn,   setIsLoggedIn]   = useState(false);
+  const [currentUser,  setCurrentUser]  = useState<GbUser | null>(null);
   const [currentPage,  setCurrentPage]  = useState<Page>('dashboard');
   const [data,         setData]         = useState<DashboardData | null>(null);
   const [isLoading,    setIsLoading]    = useState(false);
@@ -53,6 +59,20 @@ function App() {
   const [searchQuery,  setSearchQuery]  = useState('');
   const [searchOpen,   setSearchOpen]   = useState(false);
   const searchRef = useRef<HTMLDivElement>(null);
+
+  // Restore session on mount
+  useEffect(() => {
+    const saved = getSession();
+    if (saved) { setCurrentUser(saved); setIsLoggedIn(true); }
+  }, []);
+
+  // Filter nav items based on user permissions
+  const NAV_ITEMS = currentUser
+    ? ALL_NAV_ITEMS.filter(item => {
+        const allowed = getAllowedPages(currentUser);
+        return allowed === 'all' || allowed.includes(item.id);
+      })
+    : ALL_NAV_ITEMS;
 
   const navigateToMembers = (branchId: number) => {
     setInitialBranchId(branchId);
@@ -146,8 +166,16 @@ function App() {
     return () => clearInterval(intervalId);
   }, [isLoggedIn]);
 
+  const handleLogout = () => {
+    clearSession();
+    setIsLoggedIn(false);
+    setCurrentUser(null);
+    setData(null);
+    setCurrentPage('dashboard');
+  };
+
   if (!isLoggedIn) {
-    return <LoginScreen onLogin={() => setIsLoggedIn(true)} />;
+    return <LoginScreen onLogin={(user) => { setCurrentUser(user); setIsLoggedIn(true); }} />;
   }
 
   return (
@@ -276,12 +304,23 @@ function App() {
 
             <div className="flex items-center gap-3 pl-4 border-l border-slate-100">
                <div className="text-right hidden sm:block">
-                  <p className="text-[12px] font-black text-primary leading-none">Admin</p>
-                  <p className="text-[10px] font-bold text-slate-400">Master Board</p>
+                  <p className="text-[12px] font-black text-primary leading-none">
+                    {currentUser?.name ?? 'Admin'}
+                  </p>
+                  <p className="text-[10px] font-bold text-slate-400">
+                    {currentUser?.role ?? 'Usuário'}
+                  </p>
                </div>
                <div className="w-10 h-10 rounded-2xl overflow-hidden border-2 border-slate-100 shadow-sm transition-transform hover:scale-105 cursor-pointer">
-                  <img src="https://api.dicebear.com/7.x/avataaars/svg?seed=Admin" alt="User" className="w-full h-full object-cover" />
+                  <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${currentUser?.email ?? 'Admin'}`} alt="User" className="w-full h-full object-cover" />
                </div>
+               <button
+                 onClick={handleLogout}
+                 title="Sair"
+                 className="w-10 h-10 flex items-center justify-center rounded-2xl bg-white border border-slate-100 text-slate-400 hover:text-rose-500 hover:border-rose-200 transition-all"
+               >
+                 <LogOut size={16} />
+               </button>
             </div>
           </div>
         </div>
@@ -321,12 +360,14 @@ function App() {
             exit={{ opacity: 0, x: -10 }}
             transition={{ duration: 0.3 }}
           >
-            {currentPage === 'dashboard'  && <DashboardScreen  data={data} isLoading={isLoading} onNavigate={setCurrentPage} onNavigateToMembers={navigateToMembers} />}
-            {currentPage === 'unidades'   && <UnidadesScreen   data={data} isLoading={isLoading} onNavigateToMembers={navigateToMembers} onNavigate={setCurrentPage} />}
-            {currentPage === 'membros'    && <MembrosScreen    initialBranchId={initialBranchId} />}
-            {currentPage === 'financeiro' && <FinanceiroScreen data={data} isLoading={isLoading} />}
-            {currentPage === 'kpis'       && <KPIsScreen       data={data} isLoading={isLoading} />}
-            {currentPage === 'campanhas'  && <CampanhasScreen />}
+            {currentPage === 'dashboard'   && <DashboardScreen   data={data} isLoading={isLoading} onNavigate={setCurrentPage} onNavigateToMembers={navigateToMembers} />}
+            {currentPage === 'unidades'    && <UnidadesScreen    data={data} isLoading={isLoading} onNavigateToMembers={navigateToMembers} onNavigate={setCurrentPage} />}
+            {currentPage === 'membros'     && <MembrosScreen     initialBranchId={initialBranchId} />}
+            {currentPage === 'financeiro'  && <FinanceiroScreen  data={data} isLoading={isLoading} />}
+            {currentPage === 'kpis'        && <KPIsScreen        data={data} isLoading={isLoading} />}
+            {currentPage === 'campanhas'   && <CampanhasScreen />}
+            {currentPage === 'metas'       && <MetasScreen       data={data} isLoading={isLoading} />}
+            {currentPage === 'agregadores' && <AgregadoresScreen />}
           </motion.div>
         </AnimatePresence>
       </main>

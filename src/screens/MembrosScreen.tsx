@@ -21,9 +21,9 @@ const BRANCH_OPTIONS = [
 // The API only supports status=1 (Active) and status=2 (Inactive).
 // "Cancelled" is not a filterable status — the API ignores any other value.
 const STATUS_OPTIONS = [
-  { label: 'Todos',         statusId: undefined        },
-  { label: 'Alunos',        statusId: STATUS.ACTIVE    },
-  { label: 'Oportunidades', statusId: STATUS.INACTIVE  },
+  { label: 'Todos',          statusId: undefined        },
+  { label: 'Alunos',         statusId: STATUS.ACTIVE    },
+  { label: 'Inadimplentes',  statusId: STATUS.INACTIVE  },
 ];
 
 const PAGE_SIZE = 25;
